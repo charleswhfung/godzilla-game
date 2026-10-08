@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godzilla Rush</title>
+    <style>
+        body {
+            background-color: #0b0e11;
+            color: #ffffff;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        h1 {
+            color: #ff3333;
+            margin: 10px 0 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        .instructions {
+            font-size: 0.9rem;
+            color: #ccc;
+            margin-bottom: 20px;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 800px;
+            height: 250px;
+            background: linear-gradient(to bottom, #090e14 0%, #1a1e29 100%);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #stars {
+            position: absolute;
+            width: 100%;
+            height: 120px;
+            background-image: 
+                radial-gradient(circle, #ffffff 1px, transparent 1px),
+                radial-gradient(circle, #ffffff 1px, transparent 1px);
+            background-size: 80px 80px, 130px 130px;
+            background-position: 0 0, 40px 50px;
+            opacity: 0.3;
+        }
+
+        #skyline {
+            position: absolute;
+            bottom: 12px;
+            left: 0;
+            width: 1600px;
+            height: 90px;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent, transparent 10px,
+                #111622 10px, #111622 40px,
+                transparent 40px, transparent 55px,
+                #0d111b 55px, #0d111b 105px,
+                transparent 105px, transparent 120px,
+                #141926 120px, #141926 150px
+            );
+            opacity: 0.8;
+        }
+
+        #ground {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 12px;
+            background-color: #4e5d6c;
+            border-top: 2px solid #5d6e7e;
+            z-index: 12;
+        }
+
+        #godzilla-player {
+            position: absolute;
+            bottom: 12px;
+            left: 80px;
+            width: 45px;
+            height: 60px;
+            background-color: #1e2924;
+            border-radius: 4px 4px 12px 4px;
+            z-index: 10;
+        }
+
+        #godzilla-head {
+            position: absolute;
+            top: -16px;
+            right: -6px;
+            width: 32px;
+            height: 22px;
+            background-color: #1e2924;
+            border-radius: 6px 12px 4px 2px;
+        }
+
+        #godzilla-eye {
+            position: absolute;
+            top: 5px;
+            right: 8px;
+            width: 5px;
+            height: 4px;
+            background-color: #ff3333;
+        }
+
+        #godzilla-jaw {
+            position: absolute;
+            bottom: -4px;
+            right: 0;
+            width: 24px;
+            height: 6px;
+            background-color: #161e1a;
+            border-bottom: 2px solid #ffffff;
+        }
+
+        #godzilla-arm {
+            position: absolute;
+            top: 16px;
+            right: -8px;
+            width: 14px;
+            height: 8px;
+            background-color: #283831;
+            border-radius: 2px 6px 6px 2px;
+            border-bottom: 2px solid #ffffff;
+        }
+
+        #godzilla-tail {
+            position: absolute;
+            bottom: 0;
+            left: -16px;
+            width: 20px;
+            height: 22px;
+            background-color: #161e1a;
+            border-radius: 12px 2px 2px 12px;
+        }
+
+        .spine-tri {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-style: solid;
+        }
+        #sp1 { top: -5px; left: -8px; border-width: 8px 12px 8px 0; border-color: transparent #00ffcc transparent transparent; }
+        #sp2 { top: 15px; left: -12px; border-width: 10px 15px 10px 0; border-color: transparent #00ffcc transparent transparent; }
+        #sp3 { top: 38px; left: -10px; border-width: 7px 12px 7px 0; border-color: transparent #00ffcc transparent transparent; }
+
+        #godzilla-player.firing .spine-tri {
+            border-color: transparent #00ffff transparent transparent !important;
+        }
+
+        #godzilla-player.ducking { height: 35px; }
+        #godzilla-player.ducking #godzilla-head { top: -12px; right: -12px; transform: rotate(15deg); }
+        #godzilla-player.ducking #godzilla-arm { top: 6px; }
+        #godzilla-player.ducking #sp3 { display: none; }
+
+        .atomic-beam {
+            position: absolute;
+            height: 8px;
+            background: linear-gradient(to bottom, #ffffff, #00ffff, #00aaff);
+            box-shadow: 0 0 12px #00ffff;
+            border-radius: 4px;
+            z-index: 11;
+        }
+
+        .obstacle {
+            position: absolute;
+            bottom: 12px;
+            width: 35px;
+            height: 65px;
+            background-color: #4a1313;
+            border: 2px solid #ff3333;
+            border-radius: 4px;
+            z-index: 5;
+        }
+
+        .obstacle.air {
+            bottom: 60px;
+            height: 30px;
+            background-color: #524410;
+            border-color: #ffcc00;
+        }
+
+        #score-board {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-family: monospace;
+            font-size: 1.5rem;
+            color: #00ffcc;
+            font-weight: bold;
+            z-index: 15;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
+
+        #game-over-screen { display: none; }
+
+        h2 {
+            color: #ff3333;
+            font-size: 2.6rem;
+            margin: 0 0 20px 0;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        button {
+            background-color: #00ffcc;
+            color: #111418;
+            border: none;
+            padding: 14px 35px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #009977;
+            z-index: 30;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Godzilla Rush</h1>
+    <div class="instructions">
+        **ESPAÇO** / **SETA CIMA** = Pular | **SETA BAIXO** = Abaixar | **TECLA F** ou **X** = Bafo Atômico! ⚡
+    </div>
+
+    <div id="game-wrapper">
+        <div id="stars"></div>
+        <div id="skyline"></div>
+        <div id="score-board">SCORE: 00000</div>
+        
+        <div id="godzilla-player">
+            <div class="spine-tri" id="sp1"></div>
+            <div class="spine-tri" id="sp2"></div>
+            <div class="spine-tri" id="sp3"></div>
+            <div id="godzilla-head">
+                <div id="godzilla-eye"></div>
+                <div id="godzilla-jaw"></div>
+            </div>
+            <div id="godzilla-arm"></div>
+            <div id="godzilla-tail"></div>
+        </div>
+
+        <div id="ground"></div>
+        
+        <div id="start-screen">
+            <h2>GODZILLA RUSH</h2>
+            <button id="start-btn">INICIAR JOGO</button>
+        </div>
+        
+        <div id="game-over-screen">
+            <h2>FIM DE JOGO</h2>
+            <div id="final-score" style="font-size: 1.4rem; color: #fff; margin-bottom: 20px;">Pontos: 0</div>
+            <button id="restart-btn">Tentar Novamente</button>
+        </div>
+    </div>
+
+    <script>
+        const wrapper = document.getElementById('game-wrapper');
+        const player = document.getElementById('godzilla-player');
+        const skyline = document.getElementById('skyline');
+        const scoreBoard = document.getElementById('score-board');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreText = document.getElementById('final-score');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        let isGameStarted = false; 
+        let isGameOver = false; 
+        let score = 0;
+        let gameSpeed = 6;
+        let spawnTimer = 0;
+        let obstacles = [];
+        let beams = [];
+        let canShoot = true; 
+        let skylineX = 0;
+
+        let yPosition = 0; 
+        let yVelocity = 0;
+        let isJumping = false;
+        let isDucking = false;
+        const gravity = 0.6;
+
+        let playerWidth = 45;
+        let playerHeight = 60;
+        const playerX = 80;
+
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playJumpSound() {
+            initAudio();
+            if (!audioCtx) return;
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
