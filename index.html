@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Godzilla Rush</title>
     <style>
         body {
@@ -16,7 +16,11 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            min-height: 100dvh;
+            box-sizing: border-box;
+            padding: 16px 10px max(16px, env(safe-area-inset-bottom));
             user-select: none;
+            -webkit-user-select: none;
         }
 
         h1 {
@@ -33,6 +37,13 @@
             margin-bottom: 20px;
         }
 
+        #game-container {
+            width: min(800px, 100%);
+            height: 250px;
+            position: relative;
+            margin: 0 auto;
+        }
+
         #game-wrapper {
             position: relative;
             width: 800px;
@@ -41,7 +52,9 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.7);
             border-radius: 4px;
             overflow: hidden;
-            margin: 0 auto;
+            margin: 0;
+            transform-origin: top left;
+            touch-action: manipulation;
         }
 
         #stars {
@@ -248,15 +261,46 @@
             transform: translateY(4px);
             box-shadow: none;
         }
+        .mobile-controls {
+            display: flex;
+            width: min(800px, 100%);
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin: 20px auto 0;
+            touch-action: none;
+        }
+        .mobile-controls button {
+            flex: 1;
+            min-width: 0;
+            padding: 17px 8px;
+            font-size: clamp(0.85rem, 3vw, 1.05rem);
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mobile-controls .shoot { background: #7efcff; }
+        .mobile-controls button.pressed { transform: translateY(4px); box-shadow: none; }
+        .mobile-tip { color: #aabac4; text-align: center; font-size: 0.8rem; margin-top: 12px; }
+        @media (pointer: fine) and (min-width: 900px) {
+            .mobile-controls { max-width: 540px; }
+        }
+        @media (max-width: 650px) {
+            body { justify-content: center; }
+            h1 { font-size: 1.5rem; text-align: center; }
+            .instructions { text-align: center; font-size: 0.78rem; margin: 6px 0 15px; }
+            .mobile-controls { margin-top: 14px; gap: 7px; }
+            #start-screen h2, #game-over-screen h2 { font-size: 2.5rem; }
+        }
     </style>
 </head>
 <body>
 
     <h1>Godzilla Rush</h1>
     <div class="instructions">
-        **ESPAÇO** / **SETA CIMA** = Pular | **SETA BAIXO** = Abaixar | **TECLA F** ou **X** = Bafo Atômico! ⚡
+        PC: Espaço / ↑ pular · ↓ abaixar · F / X disparar. No celular, use os botões abaixo.
     </div>
 
+    <div id="game-container">
     <div id="game-wrapper">
         <div id="stars"></div>
         <div id="skyline"></div>
@@ -287,11 +331,27 @@
             <button id="restart-btn">Tentar Novamente</button>
         </div>
     </div>
+    </div>
+    <div class="mobile-controls" aria-label="Controles do jogo">
+        <button id="jump-btn" type="button">↑ PULAR</button>
+        <button id="duck-btn" type="button">↓ ABAIXAR</button>
+        <button id="fire-btn" type="button" class="shoot">⚡ DISPARAR</button>
+    </div>
+    <div class="mobile-tip">Dica: na horizontal o jogo fica maior. Segure ABAIXAR para permanecer agachado.</div>
 
     <script>
         // O truque definitivo: window.onload garante que o navegador só executa o script após carregar toda a tela do arquivo único
         window.onload = function() {
             const wrapper = document.getElementById('game-wrapper');
+            const gameContainer = document.getElementById('game-container');
+            function resizeGame() {
+                const width = Math.min(800, gameContainer.clientWidth);
+                const scale = width / 800;
+                wrapper.style.transform = `scale(${scale})`;
+                gameContainer.style.height = `${250 * scale}px`;
+            }
+            window.addEventListener('resize', resizeGame);
+            resizeGame();
             const player = document.getElementById('godzilla-player');
             const skyline = document.getElementById('skyline');
             const scoreBoard = document.getElementById('score-board');
@@ -543,6 +603,34 @@
                 activeKeys.clear();
                 duck(false);
             });
+            // Pointer Events funcionam com toque, mouse e caneta.
+            function bindControl(id, onPress, onRelease) {
+                const button = document.getElementById(id);
+                let pressed = false;
+                function release(event) {
+                    if (!pressed) return;
+                    pressed = false;
+                    button.classList.remove('pressed');
+                    if (onRelease) onRelease();
+                    if (event && event.cancelable) event.preventDefault();
+                }
+                button.addEventListener('pointerdown', event => {
+                    if (event.cancelable) event.preventDefault();
+                    if (pressed) return;
+                    pressed = true;
+                    try { button.setPointerCapture(event.pointerId); } catch (_) {}
+                    button.classList.add('pressed');
+                    onPress();
+                });
+                button.addEventListener('pointerup', release);
+                button.addEventListener('pointercancel', release);
+                button.addEventListener('lostpointercapture', release);
+                window.addEventListener('blur', release);
+            }
+            bindControl('jump-btn', jump);
+            bindControl('duck-btn', () => duck(true), () => duck(false));
+            bindControl('fire-btn', fire);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) duck(false); });
             startBtn.addEventListener('click', startGame);
             restartBtn.addEventListener('click', startGame);
         };
