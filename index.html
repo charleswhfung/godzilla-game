@@ -41,6 +41,7 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.7);
             border-radius: 4px;
             overflow: hidden;
+            margin: 0 auto;
         }
 
         #stars {
@@ -112,6 +113,7 @@
             width: 5px;
             height: 4px;
             background-color: #ff3333;
+            box-shadow: 0 0 4px #ff3333;
         }
 
         #godzilla-jaw {
@@ -168,7 +170,7 @@
             position: absolute;
             height: 8px;
             background: linear-gradient(to bottom, #ffffff, #00ffff, #00aaff);
-            box-shadow: 0 0 12px #00ffff;
+            box-shadow: 0 0 12px #00ffff, 0 0 4px #ffffff;
             border-radius: 4px;
             z-index: 11;
         }
@@ -216,7 +218,9 @@
             z-index: 20;
         }
 
-        #game-over-screen { display: none; }
+        #game-over-screen {
+            display: none;
+        }
 
         h2 {
             color: #ff3333;
@@ -279,57 +283,269 @@
         
         <div id="game-over-screen">
             <h2>FIM DE JOGO</h2>
-            <div id="final-score" style="font-size: 1.4rem; color: #fff; margin-bottom: 20px;">Pontos: 0</div>
+            <div id="final-score" style="font-size: 1.4rem; margin-bottom: 20px; font-family: sans-serif;">Pontos: 0</div>
             <button id="restart-btn">Tentar Novamente</button>
         </div>
     </div>
 
     <script>
-        const wrapper = document.getElementById('game-wrapper');
-        const player = document.getElementById('godzilla-player');
-        const skyline = document.getElementById('skyline');
-        const scoreBoard = document.getElementById('score-board');
-        const startScreen = document.getElementById('start-screen');
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const finalScoreText = document.getElementById('final-score');
-        const startBtn = document.getElementById('start-btn');
-        const restartBtn = document.getElementById('restart-btn');
+        // O truque definitivo: window.onload garante que o navegador só executa o script após carregar toda a tela do arquivo único
+        window.onload = function() {
+            const wrapper = document.getElementById('game-wrapper');
+            const player = document.getElementById('godzilla-player');
+            const skyline = document.getElementById('skyline');
+            const scoreBoard = document.getElementById('score-board');
+            const startScreen = document.getElementById('start-screen');
+            const gameOverScreen = document.getElementById('game-over-screen');
+            const finalScoreText = document.getElementById('final-score');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
 
-        let isGameStarted = false; 
-        let isGameOver = false; 
-        let score = 0;
-        let gameSpeed = 6;
-        let spawnTimer = 0;
-        let obstacles = [];
-        let beams = [];
-        let canShoot = true; 
-        let skylineX = 0;
+            let isGameStarted = false; 
+            let isGameOver = false; 
+            let score = 0;
+            let gameSpeed = 6;
+            let spawnTimer = 0;
+            let obstacles = [];
+            let beams = [];
+            let canShoot = true; 
+            let skylineX = 0;
 
-        let yPosition = 0; 
-        let yVelocity = 0;
-        let isJumping = false;
-        let isDucking = false;
-        const gravity = 0.6;
+            let yPosition = 0; 
+            let yVelocity = 0;
+            let isJumping = false;
+            let isDucking = false;
+            const gravity = 0.6;
 
-        let playerWidth = 45;
-        let playerHeight = 60;
-        const playerX = 80;
+            let playerWidth = 45;
+            let playerHeight = 60;
+            const playerX = 80;
 
-        let audioCtx = null;
+            let audioCtx = null;
 
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
             }
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }
 
-        function playJumpSound() {
-            initAudio();
-            if (!audioCtx) return;
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
+            function sound(freq = 400, duration = 0.12, type = 'square') {
+                try {
+                    if (!audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + duration);
+                } catch (e) { console.warn('Som indisponível:', e); }
+            }
+
+            let frameId = null;
+            let lastTime = 0;
+            let beamCooldown = 0;
+
+            function updateScore() {
+                scoreBoard.textContent = 'SCORE: ' + String(Math.floor(score)).padStart(5, '0');
+            }
+
+            function clearObjects() {
+                for (const obj of [...obstacles, ...beams]) obj.element.remove();
+                obstacles = [];
+                beams = [];
+            }
+
+            function startGame() {
+                if (frameId !== null) cancelAnimationFrame(frameId);
+                clearObjects();
+                initAudio();
+                isGameStarted = true;
+                isGameOver = false;
+                score = 0;
+                gameSpeed = 6;
+                spawnTimer = 95;
+                skylineX = 0;
+                yPosition = 0;
+                yVelocity = 0;
+                isJumping = false;
+                isDucking = false;
+                canShoot = true;
+                beamCooldown = 0;
+                player.style.bottom = '12px';
+                player.classList.remove('ducking', 'firing');
+                startScreen.style.display = 'none';
+                gameOverScreen.style.display = 'none';
+                updateScore();
+                lastTime = 0;
+                frameId = requestAnimationFrame(loop);
+            }
+
+            function endGame() {
+                isGameOver = true;
+                isGameStarted = false;
+                frameId = null;
+                finalScoreText.textContent = 'Pontos: ' + Math.floor(score);
+                gameOverScreen.style.display = 'flex';
+                player.classList.remove('firing');
+                sound(110, 0.35, 'sawtooth');
+            }
+
+            function jump() {
+                if (!isGameStarted || isGameOver || isJumping) return;
+                isDucking = false;
+                player.classList.remove('ducking');
+                yVelocity = 11.8;
+                isJumping = true;
+                sound(300, 0.12);
+            }
+
+            function duck(value) {
+                if (!isGameStarted || isGameOver) return;
+                isDucking = value && !isJumping;
+                player.classList.toggle('ducking', isDucking);
+            }
+
+            function fire() {
+                if (!isGameStarted || isGameOver || !canShoot) return;
+                canShoot = false;
+                beamCooldown = 34;
+                const el = document.createElement('div');
+                el.className = 'atomic-beam';
+                const beam = { element: el, x: playerX + 47, y: 12 + yPosition + (isDucking ? 22 : 45), width: 65 };
+                el.style.left = beam.x + 'px';
+                el.style.bottom = beam.y + 'px';
+                el.style.width = beam.width + 'px';
+                wrapper.appendChild(el);
+                beams.push(beam);
+                player.classList.add('firing');
+                sound(650, 0.2, 'sawtooth');
+            }
+
+            function spawnObstacle() {
+                const isAir = Math.random() < 0.35;
+                const el = document.createElement('div');
+                el.className = 'obstacle' + (isAir ? ' air' : '');
+                const obstacle = {
+                    element: el,
+                    x: wrapper.clientWidth + 10,
+                    width: 39,
+                    y: isAir ? 60 : 12,
+                    height: isAir ? 34 : 69
+                };
+                el.style.left = obstacle.x + 'px';
+                wrapper.appendChild(el);
+                obstacles.push(obstacle);
+            }
+
+            function overlaps(a, b) {
+                return a.x < b.x + b.width && a.x + a.width > b.x &&
+                    a.y < b.y + b.height && a.y + a.height > b.y;
+            }
+
+            function loop(timestamp) {
+                if (!isGameStarted || isGameOver) return;
+                const delta = lastTime ? Math.min((timestamp - lastTime) / (1000 / 60), 2) : 1;
+                lastTime = timestamp;
+                score += 0.16 * delta;
+                gameSpeed = 6 + Math.min(score / 110, 7);
+                updateScore();
+
+                yPosition += yVelocity * delta;
+                yVelocity -= gravity * delta;
+                if (yPosition <= 0) {
+                    yPosition = 0;
+                    yVelocity = 0;
+                    isJumping = false;
+                }
+                player.style.bottom = (12 + yPosition) + 'px';
+
+                skylineX -= gameSpeed * 0.24 * delta;
+                if (skylineX <= -800) skylineX += 800;
+                skyline.style.transform = `translateX(${skylineX}px)`;
+
+                if (beamCooldown > 0) {
+                    beamCooldown -= delta;
+                    if (beamCooldown <= 0) {
+                        canShoot = true;
+                        player.classList.remove('firing');
+                    }
+                }
+
+                spawnTimer -= delta;
+                if (spawnTimer <= 0) {
+                    spawnObstacle();
+                    spawnTimer = 77 + Math.random() * 55 - Math.min(score / 35, 35);
+                }
+
+                for (let i = beams.length - 1; i >= 0; i--) {
+                    const beam = beams[i];
+                    beam.x += 13 * delta;
+                    beam.element.style.left = beam.x + 'px';
+                    if (beam.x > wrapper.clientWidth) {
+                        beam.element.remove();
+                        beams.splice(i, 1);
+                    }
+                }
+
+                const playerBox = { x: playerX + 6, y: 12 + yPosition, width: playerWidth - 12, height: isDucking ? 35 : playerHeight };
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    const obstacle = obstacles[i];
+                    obstacle.x -= gameSpeed * delta;
+                    obstacle.element.style.left = obstacle.x + 'px';
+
+                    let destroyed = false;
+                    for (let j = beams.length - 1; j >= 0; j--) {
+                        if (overlaps(obstacle, { ...beams[j], height: 8 })) {
+                            obstacle.element.remove();
+                            beams[j].element.remove();
+                            obstacles.splice(i, 1);
+                            beams.splice(j, 1);
+                            score += 10;
+                            sound(180, 0.12);
+                            destroyed = true;
+                            break;
+                        }
+                    }
+                    if (destroyed) continue;
+                    if (overlaps(playerBox, obstacle)) {
+                        endGame();
+                        return;
+                    }
+                    if (obstacle.x + obstacle.width < 0) {
+                        obstacle.element.remove();
+                        obstacles.splice(i, 1);
+                    }
+                }
+                frameId = requestAnimationFrame(loop);
+            }
+
+            const activeKeys = new Set();
+            window.addEventListener('keydown', (event) => {
+                const key = event.key.toLowerCase();
+                if ([' ', 'arrowup', 'arrowdown', 'f', 'x'].includes(key)) event.preventDefault();
+                if (activeKeys.has(key)) return;
+                activeKeys.add(key);
+                if (key === ' ' || key === 'arrowup') jump();
+                if (key === 'arrowdown') duck(true);
+                if (key === 'f' || key === 'x') fire();
+            });
+            window.addEventListener('keyup', (event) => {
+                const key = event.key.toLowerCase();
+                activeKeys.delete(key);
+                if (key === 'arrowdown') duck(false);
+            });
+            window.addEventListener('blur', () => {
+                activeKeys.clear();
+                duck(false);
+            });
+            startBtn.addEventListener('click', startGame);
+            restartBtn.addEventListener('click', startGame);
+        };
+    </script>
+</body>
+</html>
